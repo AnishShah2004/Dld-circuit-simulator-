@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#eef2f7;color:#111827}
+.header{padding:18px;background:#111827;color:#fff;text-align:center;font-size:clamp(18px,3vw,26px);font-weight:bold}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;padding:12px;background:#fff;border-bottom:1px solid #cbd5e1;align-items:center}
+button,select{font:inherit}
+.toolbar button,.input-toggle{border:0;border-radius:7px;padding:10px 13px;background:#2563eb;color:white;font-weight:bold;cursor:pointer}
+#adderBtn{background:#6d28d9}#comboBtn{background:#0f766e}#truthBtn{background:#15803d}#exprBtn{background:#7c3aed}#kmapBtn{background:#c2410c}#exportBtn{background:#0e7490}#csvBtn{background:#0f766e}#saveBtn{background:#0f766e}#loadBtn{background:#0369a1}#clearBtn{background:#dc2626}
+button:hover{filter:brightness(.95)}
+#outputSelector{padding:9px;border:1px solid #94a3b8;border-radius:7px;background:white}
+#canvas{position:relative;height:620px;margin:14px;background-color:#f8fafc;background-image:linear-gradient(#e2e8f0 1px,transparent 1px),linear-gradient(90deg,#e2e8f0 1px,transparent 1px);background-size:25px 25px;border:2px solid #94a3b8;border-radius:10px;overflow:auto}
+#wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
+.wire{fill:none;stroke:#334155;stroke-width:3}
+.input-node,.gate{position:absolute;z-index:2;background:white;user-select:none}
+.input-node{width:86px;height:66px;border:2px solid #16a34a;border-radius:10px;text-align:center;padding:8px 0;font-weight:bold;cursor:move}
+.input-value{font-size:20px;color:#15803d}
+.input-port,.port{position:absolute;width:14px;height:14px;border:2px solid white;border-radius:50%;cursor:crosshair;z-index:4}
+.input-port{right:-8px;top:25px;background:#16a34a}
+.gate{width:150px;min-height:112px;border:2px solid #475569;border-radius:12px;cursor:move}
+.gate-title{text-align:center;font-size:19px;font-weight:bold;padding:10px;cursor:move}
+.gate-output-value{text-align:center;margin:4px 0 10px;font-weight:bold}
+.input-port-gate{left:-8px;background:#2563eb}
+.port1{top:30px}.port2{top:72px}.output-port{right:-8px;top:49px;background:#dc2626}
+.selected{box-shadow:0 0 0 3px #f59e0b}
+#inputPanel{position:absolute;top:12px;left:12px;z-index:5;padding:8px;background:white;border-radius:8px;box-shadow:0 2px 8px #0002;display:flex;flex-wrap:wrap;gap:5px}
+.input-toggle{padding:7px 10px;background:#16a34a}
+#status{position:absolute;z-index:5;left:12px;bottom:10px;padding:8px 10px;background:#fff;border-radius:6px;font-size:13px;max-width:90%}
+.panel{display:none;background:white;margin:14px;padding:18px;border:1px solid #cbd5e1;border-radius:10px;overflow-x:auto}
+.panel h2{margin-top:0}
+#expressionBox{padding:16px;background:#f3f4f6;border-left:5px solid #7c3aed;border-radius:6px;font: bold 22px "Courier New",monospace;overflow-wrap:anywhere}
+#truthTable,.kmap{border-collapse:collapse}
+#truthTable th,#truthTable td,.kmap th,.kmap td{border:1px solid #94a3b8;padding:9px 16px;text-align:center}
+#truthTable th{background:#111827;color:white}
+.kmap-area{position:relative;display:inline-block;margin-top:8px}
+.kmap th{background:#e2e8f0}
+.kmap td{width:68px;height:55px;font-size:20px;font-weight:bold;position:relative}
+.kmap td.one{background:#fef3c7}.kmap td.zero{background:#f8fafc;color:#94a3b8}.kmap td.dontcare{background:#dbeafe;color:#1d4ed8}
+.group-box{position:absolute;pointer-events:none;border:3px solid;border-radius:10px;z-index:6}
+.group-0{border-color:#dc2626}.group-1{border-color:#2563eb}.group-2{border-color:#16a34a}.group-3{border-color:#9333ea}.group-4{border-color:#ea580c}.group-5{border-color:#0891b2}.group-6{border-color:#db2777}.group-7{border-color:#65a30d}
+.group-item{background:#f3f4f6;border-radius:6px;padding:10px;margin:7px 0;font-family:monospace}
+.simplified-box{margin-top:16px;padding:16px;background:#ecfdf5;border-left:5px solid #16a34a;font-size:22px;font-weight:bold}
+.small-note{color:#475569;font-size:13px}
+</style>
+</head>
+<body>
+<div class="header">DIGITAL LOGIC CIRCUIT SIMULATOR</div>
+<div class="toolbar">
+<button onclick="addGate('AND')">AND</button><button onclick="addGate('OR')">OR</button>
+<button onclick="addGate('NOT')">NOT</button><button onclick="addGate('NAND')">NAND</button>
+<button onclick="addGate('NOR')">NOR</button><button onclick="addGate('XOR')">XOR</button>
+<button onclick="addGate('XNOR')">XNOR</button>
+<select id="outputSelector"><option value="">Select Output</option></select>
+<button id="truthBtn" onclick="generateTruthTable()">TRUTH TABLE</button>
+<button id="exprBtn" onclick="generateExpression()">BOOLEAN EXPRESSION</button>
+<button id="kmapBtn" onclick="generateKMap()">K-MAP + SIMPLIFY</button>
+<button id="adderBtn" onclick="showAdderLab()">HALF / FULL ADDER</button>
+<button id="comboBtn" onclick="showCombinationalLab()">MUX / DECODER</button>
+<button id="exportBtn" onclick="exportCircuitImage()">EXPORT IMAGE</button>
+<button id="csvBtn" onclick="exportTruthTableCSV()">EXPORT TRUTH TABLE CSV</button>
+<button id="saveBtn" onclick="saveCircuit()">SAVE CIRCUIT</button>
+<button id="loadBtn" onclick="document.getElementById('loadFile').click()">LOAD CIRCUIT</button>
+<input id="loadFile" type="file" accept=".json,application/json" style="display:none" onchange="loadCircuit(event)">
+<button id="clearBtn" onclick="clearCircuit()">CLEAR</button>
+</div>
+<div id="canvas">
+<svg id="wires"></svg>
+<div id="inputPanel">
+<button class="input-toggle" onclick="toggleInput('A')">A = <span id="valueA">0</span></button>
+<button class="input-toggle" onclick="toggleInput('B')">B = <span id="valueB">0</span></button>
+<button class="input-toggle" onclick="toggleInput('C')">C = <span id="valueC">0</span></button>
+<button class="input-toggle" onclick="toggleInput('D')">D = <span id="valueD">0</span></button>
+</div>
+<div class="input-node" id="inputA" style="left:25px;top:155px" onmousedown="startDrag(event,this)">A<div class="input-value" id="nodeValueA">0</div><div class="input-port" id="portA" onclick="portClick(event,'A')"></div></div>
+<div class="input-node" id="inputB" style="left:25px;top:255px" onmousedown="startDrag(event,this)">B<div class="input-value" id="nodeValueB">0</div><div class="input-port" id="portB" onclick="portClick(event,'B')"></div></div>
+<div class="input-node" id="inputC" style="left:25px;top:355px" onmousedown="startDrag(event,this)">C<div class="input-value" id="nodeValueC">0</div><div class="input-port" id="portC" onclick="portClick(event,'C')"></div></div>
+<div class="input-node" id="inputD" style="left:25px;top:455px" onmousedown="startDrag(event,this)">D<div class="input-value" id="nodeValueD">0</div><div class="input-port" id="portD" onclick="portClick(event,'D')"></div></div>
+<div id="status">Connection: click a source output, then a gate input.</div>
+</div>
+<div class="panel" id="adderPanel">
+<h2>Half Adder &amp; Full Adder Lab</h2>
+<p class="small-note">Inputs change karte hi Sum aur Carry update honge. Truth table aur Boolean formulas bhi neeche milenge.</p>
+<label for="adderType"><b>Component:</b></label>
+<select id="adderType" onchange="renderAdderLab()"><option value="half">Half Adder</option><option value="full">Full Adder</option></select>
+<div id="adderInputs" style="display:flex;flex-wrap:wrap;gap:16px;margin:14px 0"></div>
+<div id="adderResult" class="simplified-box" style="font-size:20px"></div>
+<div id="adderTruth"></div>
+<div id="adderExplanation" class="group-item"></div>
+</div>
+<div class="panel" id="combinationalPanel">
+<h2>MUX &amp; Decoder Lab</h2>
+<p class="small-note">4:1 MUX mein select lines I0–I3 mein se output choose karti hain. 2-to-4 Decoder mein input combination ke hisaab se ek output active hota hai.</p>
+<label for="comboType"><b>Component:</b></label>
+<select id="comboType" onchange="renderCombinationalLab()"><option value="mux">4:1 Multiplexer (MUX)</option><option value="decoder">2-to-4 Decoder</option></select>
+<div id="comboInputs" style="display:flex;flex-wrap:wrap;gap:16px;margin:14px 0"></div>
+<div id="comboResult" class="simplified-box" style="font-size:20px"></div>
+<div id="comboTruth"></div>
+<div id="comboExplanation" class="group-item"></div>
+</div>
+<div class="panel" id="expressionPanel"><h2>Boolean Expression</h2><div id="expressionBox">No expression generated.</div></div>
+<div class="panel" id="truthPanel"><h2>Truth Table</h2><div id="truthContent"></div></div>
+<div class="panel" id="kmapPanel"><h2>K-Map Analyzer</h2><label for="kmapVariables"><b>Variables:</b></label> <select id="kmapVariables" onchange="generateKMap()"><option value="2">2 Variables (A, B)</option><option value="3">3 Variables (A, B, C)</option><option value="4" selected>4 Variables (A, B, C, D)</option></select><div class="kmap-controls"><label><b>Form:</b> <select id="kmapForm" onchange="generateKMap()"><option value="SOP">SOP (group 1s)</option><option value="POS">POS (group 0s)</option></select></label> <span class="small-note">Click cells: 0 → 1 → X (don’t-care) → 0</span></div><div id="minterms"></div><div class="kmap-area" id="kmapArea"><table class="kmap" id="kmapTable"></table><div id="groupOverlay"></div></div><div id="kmapInfo"></div></div>
+<script>
+"use strict";
+let gateCount=0, gates={}, connections=[];
+let inputs={A:0,B:0,C:0,D:0};
+let selectedPort=null, dragging=null, dragOffsetX=0, dragOffsetY=0;
+const GRAY=[[0,0],[0,1],[1,1],[1,0]];
+
+function showAdderLab(){
+  document.getElementById("adderPanel").style.display="block";
+  renderAdderLab();
+  document.getElementById("adderPanel").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function renderAdderLab(){
+  const type=document.getElementById("adderType").value;
+  const isFull=type==="full";
+  const labels=isFull?["A","B","Cin"]:["A","B"];
+  const inputsHtml=labels.map(label=>`<label style="display:flex;align-items:center;gap:6px;font-weight:bold">${label}<select id="adderInput${label}" onchange="updateAdderResult()"><option value="0">0</option><option value="1">1</option></select></label>`).join("");
+  document.getElementById("adderInputs").innerHTML=inputsHtml;
+  const rows=[];
+  for(let n=0;n<(isFull?8:4);n++){
+    const a=(n>>(isFull?2:1))&1,b=(n>>(isFull?1:0))&1,cin=isFull?n&1:0;
+    const total=a+b+cin;
+    rows.push(`<tr><td>${a}</td><td>${b}</td>${isFull?`<td>${cin}</td>`:""}<td>${total%2}</td><td>${Math.floor(total/2)}</td></tr>`);
+  }
+  document.getElementById("adderTruth").innerHTML=`<h3>${isFull?"Full":"Half"} Adder Truth Table</h3><table id="truthTable"><thead><tr><th>A</th><th>B</th>${isFull?"<th>Cin</th>":""}<th>Sum</th><th>Carry</th></tr></thead><tbody>${rows.join("")}</tbody></table>`;
+  document.getElementById("adderExplanation").innerHTML=isFull?`<b>Boolean equations</b><br>Sum = A ⊕ B ⊕ Cin<br>Carry = (A · B) + (Cin · (A ⊕ B))`:`<b>Boolean equations</b><br>Sum = A ⊕ B<br>Carry = A · B`;
+  updateAdderResult();
+}
+function updateAdderResult(){
+  const type=document.getElementById("adderType").value;
+  const a=Number(document.getElementById("adderInputA")?.value||0),b=Number(document.getElementById("adderInputB")?.value||0),cin=type==="full"?Number(document.getElementById("adderInputCin")?.value||0):0;
+  const total=a+b+cin;
+  document.getElementById("adderResult").innerHTML=`<b>Output</b><br>Sum = ${total%2} &nbsp; | &nbsp; Carry = ${Math.floor(total/2)}<br><span class="small-note">Binary addition: ${a} + ${b}${type==="full"?" + "+cin:""} = ${total}</span>`;
+}
+
+function showCombinationalLab(){
+  document.getElementById("combinationalPanel").style.display="block";
+  renderCombinationalLab();
+  document.getElementById("combinationalPanel").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function renderCombinationalLab(){
+  const type=document.getElementById("comboType").value;
+  const host=document.getElementById("comboInputs");
+  if(type==="mux"){
+    const labels=["I0","I1","I2","I3","S1","S0"];
+    host.innerHTML=labels.map(label=>`<label style="display:flex;align-items:center;gap:6px;font-weight:bold">${label}<select id="combo${label}" onchange="updateCombinationalResult()"><option value="0">0</option><option value="1">1</option></select></label>`).join("");
+    const rows=[];
+    for(let s=0;s<4;s++) for(let n=0;n<16;n++){
+      const vals=[(n>>3)&1,(n>>2)&1,(n>>1)&1,n&1];
+      const selected=(s>>1)&1, low=s&1;
+      rows.push(`<tr><td>${vals[0]}</td><td>${vals[1]}</td><td>${vals[2]}</td><td>${vals[3]}</td><td>${selected}</td><td>${low}</td><td>${vals[s]}</td></tr>`);
+    }
+    document.getElementById("comboTruth").innerHTML=`<h3>4:1 MUX — Select Mapping</h3><table id="truthTable"><thead><tr><th>S1</th><th>S0</th><th>Selected input</th><th>Output</th></tr></thead><tbody>${[0,1,2,3].map(s=>`<tr><td>${(s>>1)&1}</td><td>${s&1}</td><td>I${s}</td><td>Y = I${s}</td></tr>`).join("")}</tbody></table>`;
+    document.getElementById("comboExplanation").innerHTML="<b>Working</b><br>S1S0 = 00 → I0; 01 → I1; 10 → I2; 11 → I3.";
+  }else{
+    const labels=["A","B"];
+    host.innerHTML=labels.map(label=>`<label style="display:flex;align-items:center;gap:6px;font-weight:bold">${label}<select id="combo${label}" onchange="updateCombinationalResult()"><option value="0">0</option><option value="1">1</option></select></label>`).join("");
+    document.getElementById("comboTruth").innerHTML=`<h3>2-to-4 Decoder Truth Table</h3><table id="truthTable"><thead><tr><th>A</th><th>B</th><th>Y0</th><th>Y1</th><th>Y2</th><th>Y3</th></tr></thead><tbody>${[0,1,2,3].map(n=>`<tr><td>${(n>>1)&1}</td><td>${n&1}</td>${[0,1,2,3].map(k=>`<td>${n===k?1:0}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+    document.getElementById("comboExplanation").innerHTML="<b>Working</b><br>Exactly one output is 1 for each input combination: AB=00 → Y0, 01 → Y1, 10 → Y2, 11 → Y3.";
+  }
+  updateCombinationalResult();
+}
+function updateCombinationalResult(){
+  const type=document.getElementById("comboType").value;
+  const result=document.getElementById("comboResult");
+  if(type==="mux"){
+    const s1=Number(document.getElementById("comboS1")?.value||0),s0=Number(document.getElementById("comboS0")?.value||0);
+    const idx=(s1<<1)|s0, val=Number(document.getElementById("comboI"+idx)?.value||0);
+    result.innerHTML=`<b>Output</b><br>Select S1S0 = ${s1}${s0} → I${idx}<br>Y = <b>${val}</b>`;
+  }else{
+    const a=Number(document.getElementById("comboA")?.value||0),b=Number(document.getElementById("comboB")?.value||0),idx=(a<<1)|b;
+    result.innerHTML=`<b>Active output</b><br>Input AB = ${a}${b}<br>${[0,1,2,3].map(k=>`Y${k} = ${k===idx?1:0}`).join(" &nbsp; | &nbsp; ")}`;
+  }
+}
+
+function addGate(type){
+  gateCount++; const id="G"+gateCount;
+  const gate=document.createElement("div");
+  gate.className="gate"; gate.id=id; gate.dataset.type=type;
+  gate.style.left=(280+((gateCount-1)%4)*185)+"px";
+  gate.style.top=(100+Math.floor((gateCount-1)/4)*170)+"px";
+  gate.innerHTML=`<div class="gate-title" onmousedown="startDrag(event,this.parentElement)">${type}</div>
+    <div class="gate-output-value">Output = <span id="${id}-value">0</span></div>
+    <div class="port input-port-gate port1" id="${id}-in1" onclick="portClick(event,'${id}-in1')"></div>
+    ${type!=="NOT"?`<div class="port input-port-gate port2" id="${id}-in2" onclick="portClick(event,'${id}-in2')"></div>`:""}
+    <div class="port output-port" id="${id}-out" onclick="portClick(event,'${id}-out')"></div>`;
+  document.getElementById("canvas").appendChild(gate);
+  gates[id]={type,value:0}; updateOutputSelector(); updateAll();
+}
+function portClick(event,portId){
+  event.stopPropagation();
+  if(!selectedPort){
+    selectedPort=portId; document.getElementById(portId).classList.add("selected");
+    document.getElementById("status").textContent="Source selected. Now click a blue gate input.";
+    return;
+  }
+  if(selectedPort===portId){resetSelection();return;}
+  createConnection(selectedPort,portId); resetSelection();
+}
+function createConnection(from,to){
+  const validFrom=["A","B","C","D"].includes(from)||from.endsWith("-out");
+  const validTo=to.endsWith("-in1")||to.endsWith("-in2");
+  if(!validFrom||!validTo){
+    document.getElementById("status").textContent="Invalid: choose a green input/source output first, then a blue gate input.";
+    return;
+  }
+  connections=connections.filter(c=>c.to!==to);
+  connections.push({from,to}); updateAll();
+  document.getElementById("status").textContent="Connected "+from+" → "+to;
+}
+function resetSelection(){
+  if(selectedPort){const el=document.getElementById(selectedPort);if(el)el.classList.remove("selected");}
+  selectedPort=null;
+}
+function getSourceValue(source){
+  if(["A","B","C","D"].includes(source))return inputs[source];
+  if(source.endsWith("-out"))return gates[source.slice(0,-4)]?.value ?? 0;
+  return 0;
+}
+function calculateGate(type,a,b){
+  switch(type){
+    case "AND":return a&b;
+    case "OR":return a|b;
+    case "NOT":return a?0:1;
+    case "NAND":return (a&b)?0:1;
+    case "NOR":return (a|b)?0:1;
+    case "XOR":return a^b;
+    case "XNOR":return (a^b)?0:1;
+    default:return 0;
+  }
+}
+function updateAll(){
+  // Repeat to settle chains of gates.
+  for(let round=0;round<Math.max(1,Object.keys(gates).length+1);round++){
+    for(const id of Object.keys(gates)){
+      const g=gates[id];
+      const c1=connections.find(c=>c.to===id+"-in1");
+      const c2=connections.find(c=>c.to===id+"-in2");
+      g.value=calculateGate(g.type,c1?getSourceValue(c1.from):0,c2?getSourceValue(c2.from):0);
+      const out=document.getElementById(id+"-value"); if(out)out.textContent=g.value;
+    }
+  }
+  drawWires();
+}
+function updateOutputSelector(){
+  const selector=document.getElementById("outputSelector"), previous=selector.value;
+  selector.innerHTML='<option value="">Select Output</option>';
+  for(const id of Object.keys(gates)){
+    const option=document.createElement("option"); option.value=id; option.textContent=`${id} (${gates[id].type})`; selector.appendChild(option);
+  }
+  if(gates[previous])selector.value=previous;
+}
+function simulate(outputGate,values){
+  const saved={...inputs}; Object.assign(inputs,values); updateAll();
+  const result=gates[outputGate]?.value??0;
+  Object.assign(inputs,saved); updateAll();
+  return result;
+}
+function selectedOutput(){
+  const output=document.getElementById("outputSelector").value;
+  if(!output||!gates[output]){alert("Pehle output gate add karke select karo.");return null;}
+  return output;
+}
+function generateTruthTable(){
+  const output=selectedOutput(); if(!output)return;
+  let rows="";
+  for(let n=0;n<16;n++){
+    const vals={A:(n>>3)&1,B:(n>>2)&1,C:(n>>1)&1,D:n&1};
+    const result=simulate(output,vals);
+    rows+=`<tr><td>${vals.A}</td><td>${vals.B}</td><td>${vals.C}</td><td>${vals.D}</td><td>${result}</td></tr>`;
+  }
+  document.getElementById("truthContent").innerHTML=`<table id="truthTable"><tr><th>A</th><th>B</th><th>C</th><th>D</th><th>Output</th></tr>${rows}</table>`;
+  document.getElementById("truthPanel").style.display="block";
+}
+function exportTruthTableCSV(){
+  const output=selectedOutput();
+  if(!output)return;
+  const rows=[['A','B','C','D','Output']];
+  for(let n=0;n<16;n++){
+    const vals={A:(n>>3)&1,B:(n>>2)&1,C:(n>>1)&1,D:n&1};
+    const result=simulate(output,vals);
+    rows.push([vals.A,vals.B,vals.C,vals.D,result]);
+  }
+  // CSV values are plain 0/1, so no special escaping is needed here.
+  const csv=rows.map(row=>row.join(',')).join('\r\n');
+  const blob=new Blob(['\uFEFF',csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement('a');
+  link.href=url;
+  link.download='DLD_Truth_Table.csv';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  document.getElementById('status').textContent='Truth table downloaded: DLD_Truth_Table.csv';
+}
+
+function getExpression(source,visited=[]){
+  if(["A","B","C","D"].includes(source))return source;
+  const id=source.replace(/-out$/,"");
+  if(visited.includes(id))return "[LOOP]";
+  const gate=gates[id]; if(!gate)return "0";
+  const next=[...visited,id];
+  const c1=connections.find(c=>c.to===id+"-in1"), c2=connections.find(c=>c.to===id+"-in2");
+  const a=c1?getExpression(c1.from,next):"0", b=c2?getExpression(c2.from,next):"0";
+  switch(gate.type){
+    case "AND":return `(${a} · ${b})`;
+    case "OR":return `(${a} + ${b})`;
+    case "NOT":return `(${a})'`;
+    case "NAND":return `(${a} · ${b})'`;
+    case "NOR":return `(${a} + ${b})'`;
+    case "XOR":return `(${a} ⊕ ${b})`;
+    case "XNOR":return `(${a} ⊕ ${b})'`;
+    default:return "0";
+  }
+}
+function generateExpression(){
+  const output=selectedOutput(); if(!output)return;
+  document.getElementById("expressionBox").textContent="Y = "+getExpression(output+"-out");
+  document.getElementById("expressionPanel").style.display="block";
+}
+function toggleInput(name){
+  inputs[name]=inputs[name]?0:1;
+  document.getElementById("value"+name).textContent=inputs[name];
+  document.getElementById("nodeValue"+name).textContent=inputs[name];
+  updateAll();
+}
+let kmapManualMinterms=null;
+let kmapManualDontCares=[];
+let kmapManualN=null;
+function currentVarCount(){return Number(document.getElementById("kmapVariables")?.value||4);}
+function currentVars(){return ["A","B","C","D"].slice(0,currentVarCount());}
+function mapDimensions(n){return n===2?{rows:2,cols:2,rowBits:1,colBits:1}:{rows:n===3?2:4,cols:n===3?4:4,rowBits:n===3?1:2,colBits:n===3?2:2};}
+function grayBits(index,bits){const g=index^(index>>1);return Array.from({length:bits},(_,i)=>(g>>(bits-1-i))&1);}
+function cellToMinterm(r,c,n=currentVarCount()){
+  const d=mapDimensions(n), row=grayBits(r,d.rowBits), col=grayBits(c,d.colBits);
+  return [...row,...col].reduce((acc,b)=>acc*2+b,0);
+}
+function getMinterms(output,n=currentVarCount()){
+  const mins=[],vars=currentVars().slice(0,n),total=1<<n;
+  for(let value=0;value<total;value++){
+    const values={A:0,B:0,C:0,D:0};
+    vars.forEach((v,i)=>values[v]=(value>>(n-1-i))&1);
+    if(simulate(output,values)===1)mins.push(value);
+  }
+  return mins;
+}
+function getAllGroups(minterms,n=currentVarCount(),allowed=minterms){
+  const d=mapDimensions(n),groups=[];
+  for(let h=1;h<=d.rows;h*=2)for(let w=1;w<=d.cols;w*=2){
+    if(h*w===0)continue;
+    for(let r=0;r<d.rows;r++)for(let c=0;c<d.cols;c++){
+      const cells=[];let valid=true;
+      for(let i=0;i<h;i++)for(let j=0;j<w;j++){
+        const rr=(r+i)%d.rows,cc=(c+j)%d.cols,m=cellToMinterm(rr,cc,n);
+        if(!allowed.includes(m))valid=false;
+        cells.push(rr+","+cc);
+      }
+      if(valid){const unique=[...new Set(cells)],key=[...unique].sort().join("|");if(!groups.some(g=>g.key===key))groups.push({key,cells:unique,size:unique.length});}
+    }
+  }
+  return groups.sort((a,b)=>b.size-a.size);
+}
+function chooseGroups(minterms,allGroups,n=currentVarCount()){
+  if(!minterms.length)return [];
+  if(minterms.length===(1<<n))return allGroups.filter(g=>g.size===(1<<n)).slice(0,1);
+  const selected=[],uncovered=new Set(minterms);
+  while(uncovered.size){
+    let best=null,bestCount=0;
+    for(const g of allGroups){
+      if(selected.some(x=>x.key===g.key))continue;
+      const ms=g.cells.map(s=>{const [r,c]=s.split(",").map(Number);return cellToMinterm(r,c,n);});
+      const count=ms.filter(m=>uncovered.has(m)).length;
+      if(count>bestCount){best=g;bestCount=count;}
+    }
+    if(!best)break;
+    selected.push(best);
+    best.cells.forEach(s=>{const [r,c]=s.split(",").map(Number);uncovered.delete(cellToMinterm(r,c,n));});
+  }
+  for(let i=selected.length-1;i>=0;i--){
+    const others=selected.filter((_,j)=>j!==i);
+    const coversAll=minterms.every(m=>others.some(g=>g.cells.some(s=>{const [r,c]=s.split(",").map(Number);return cellToMinterm(r,c,n)===m;})));
+    if(coversAll)selected.splice(i,1);
+  }
+  return selected;
+}
+function groupToTerm(group,n=currentVarCount()){
+  const vars=currentVars().slice(0,n),parts=[];
+  for(let bit=0;bit<n;bit++){
+    const vals=group.cells.map(s=>{const [r,c]=s.split(",").map(Number);return (cellToMinterm(r,c,n)>>(n-1-bit))&1;});
+    if(vals.every(v=>v===0))parts.push(vars[bit]+"'");else if(vals.every(v=>v===1))parts.push(vars[bit]);
+  }
+  return parts.length?parts.join(" · "):"1";
+}
+function groupMinterms(group,n=currentVarCount()){
+  return group.cells.map(s=>{const [r,c]=s.split(",").map(Number);return cellToMinterm(r,c,n);}).sort((a,b)=>a-b);
+}
+function explainGroup(group,form,n=currentVarCount()){
+  const vars=currentVars().slice(0,n),mins=groupMinterms(group,n),lines=[];
+  lines.push(`Step 1: Group the ${form==="SOP"?"1-cells":"0-cells"} at minterms (${mins.join(", ")}). Group size = ${group.size}.`);
+  const fixed=[];
+  for(let bit=0;bit<n;bit++){
+    const vals=mins.map(m=>(m>>(n-1-bit))&1);
+    if(vals.every(v=>v===vals[0])){
+      const v=vals[0];
+      fixed.push({name:vars[bit],value:v});
+      lines.push(`Step ${lines.length+1}: Variable ${vars[bit]} stays ${v} in this group, so it is kept in the term.`);
+    }else{
+      lines.push(`Step ${lines.length+1}: Variable ${vars[bit]} changes between 0 and 1, so it cancels out.`);
+    }
+  }
+  const term=form==="POS"?groupToPOSClause(group,n):groupToTerm(group,n);
+  lines.push(`Result for this group: ${term}`);
+  return lines;
+}
+function drawGroupBoxes(groups){
+  const overlay=document.getElementById("groupOverlay"),table=document.getElementById("kmapTable"),area=document.getElementById("kmapArea");
+  overlay.innerHTML=""; overlay.style.pointerEvents="none"; overlay.style.position="absolute";overlay.style.left="0";overlay.style.top="0";overlay.style.width="100%";overlay.style.height="100%";
+  const map={};table.querySelectorAll("td[data-r]").forEach(td=>map[td.dataset.r+","+td.dataset.c]=td);
+  groups.forEach((g,index)=>{
+    // Draw a border around each cell in a group; this works for wrap-around groups too.
+    g.cells.forEach(key=>{
+      const cell=map[key];if(!cell)return;
+      const cr=cell.getBoundingClientRect(),ar=area.getBoundingClientRect();
+      const box=document.createElement("div");box.className="group-box group-"+(index%8);
+      box.style.left=(cr.left-ar.left+1)+"px";box.style.top=(cr.top-ar.top+1)+"px";
+      box.style.width=(cr.width-2)+"px";box.style.height=(cr.height-2)+"px";overlay.appendChild(box);
+    });
+  });
+}
+function toggleKMapMinterm(m){
+  const n=currentVarCount();
+  if(kmapManualN!==n||!Array.isArray(kmapManualMinterms)){
+    const output=selectedOutput();if(!output)return;
+    kmapManualN=n;kmapManualMinterms=getMinterms(output,n);kmapManualDontCares=[];
+  }
+  // Cycle a cell through 0 -> 1 -> X -> 0.
+  if(kmapManualDontCares.includes(m)){
+    kmapManualDontCares=kmapManualDontCares.filter(x=>x!==m);
+  }else if(kmapManualMinterms.includes(m)){
+    kmapManualMinterms=kmapManualMinterms.filter(x=>x!==m);kmapManualDontCares.push(m);
+  }else{
+    kmapManualMinterms.push(m);
+  }
+  kmapManualMinterms.sort((a,b)=>a-b);kmapManualDontCares.sort((a,b)=>a-b);
+  generateKMap();
+}
+function resetKMapFromCircuit(){
+  const output=selectedOutput();if(!output)return;
+  kmapManualN=currentVarCount();kmapManualMinterms=getMinterms(output,kmapManualN);kmapManualDontCares=[];
+  generateKMap();
+}
+function groupToPOSClause(group,n=currentVarCount()){
+  const vars=currentVars().slice(0,n),parts=[];
+  for(let bit=0;bit<n;bit++){
+    const vals=group.cells.map(key=>{const [r,c]=key.split(",").map(Number);return (cellToMinterm(r,c,n)>>(n-1-bit))&1;});
+    // For a zero-group, a constant 0 variable appears uncomplemented in the clause;
+    // a constant 1 variable appears complemented.
+    if(vals.every(v=>v===0))parts.push(vars[bit]);else if(vals.every(v=>v===1))parts.push(vars[bit]+"'");
+  }
+  return parts.length?"("+parts.join(" + ")+")":"0";
+}
+function generateKMap(){
+  const output=selectedOutput();if(!output)return;
+  const n=currentVarCount(),d=mapDimensions(n),vars=currentVars().slice(0,n),total=1<<n;
+  if(kmapManualN!==n||!Array.isArray(kmapManualMinterms)){
+    kmapManualN=n;kmapManualMinterms=getMinterms(output,n);kmapManualDontCares=[];
+  }
+  const minterms=[...kmapManualMinterms],dontCares=[...(kmapManualDontCares||[])].filter(m=>!minterms.includes(m));
+  const form=document.getElementById("kmapForm")?.value||"SOP";
+  const target=form==="POS"?Array.from({length:total},(_,i)=>i).filter(m=>!minterms.includes(m)&&!dontCares.includes(m)):minterms;
+  const allowed=[...new Set([...target,...dontCares])];
+  document.querySelector("#kmapPanel h2").textContent=n+"-Variable K-Map";
+  document.getElementById("minterms").innerHTML="<b>Minterms = Σm("+(minterms.length?minterms.join(", "):"∅")+")</b> &nbsp; <b>Don't-care = d("+(dontCares.length?dontCares.join(", "):"∅")+")</b>";
+  const rowLabels=Array.from({length:d.rows},(_,i)=>grayBits(i,d.rowBits).join(""));
+  const colLabels=Array.from({length:d.cols},(_,i)=>grayBits(i,d.colBits).join(""));
+  const rowName=vars.slice(0,d.rowBits).join("");const colName=vars.slice(d.rowBits).join("");
+  let html=`<tr><th>${rowName} \ ${colName}</th>${colLabels.map(x=>`<th>${x}</th>`).join("")}</tr>`;
+  rowLabels.forEach((label,r)=>{html+=`<tr><th>${label}</th>`;colLabels.forEach((_,c)=>{const m=cellToMinterm(r,c,n),v=minterms.includes(m)?1:0,isX=dontCares.includes(m);html+=`<td class="${isX?"dontcare":v?"one":"zero"}" data-r="${r}" data-c="${c}" title="m${m} — click to cycle 0/1/X" onclick="toggleKMapMinterm(${m})" style="cursor:pointer;pointer-events:auto;user-select:none" aria-label="Toggle minterm ${m}">${isX?"X":v}</td>`;});html+="</tr>";});
+  document.getElementById("kmapTable").innerHTML=html;
+  const groups=chooseGroups(target,getAllGroups(target,n,allowed),n);
+  const terms=[...new Set(groups.map(g=>form==="POS"?groupToPOSClause(g,n):groupToTerm(g,n)))];
+  let simplified;
+  if(form==="SOP") simplified=minterms.length===0?"0":minterms.length===total?"1":terms.join(" + ");
+  else simplified=target.length===0?"1":target.length===total?"0":terms.join(" · ");
+  let info="<h3>Automatic Groups ("+(form==="SOP"?"1s":"0s")+")</h3>";
+  if(!groups.length)info+='<p>No groups needed for this form.</p>';
+  groups.forEach((g,i)=>info+=`<div class="group-item"><b>Group ${i+1}</b> — size ${g.size}; cells (${groupMinterms(g,n).join(", ")}) → ${form==="POS"?groupToPOSClause(g,n):groupToTerm(g,n)}</div>`);
+  info+='<h3>Simplification Steps</h3><div class="group-item">';
+  if(!groups.length){
+    info+=form==="SOP"?'No 1-cells to group. Therefore, Y = 0.':'No 0-cells to group. Therefore, Y = 1.';
+  }else{
+    groups.forEach((g,i)=>{info+=`<b>Group ${i+1}</b><ol>`+explainGroup(g,form,n).map(line=>`<li>${line}</li>`).join('')+'</ol>';});
+    info+=`<b>Combine the group results:</b> ${form==="SOP"?terms.join(" + "):terms.join(" · ")}`;
+  }
+  info+='</div>';
+  info+=`<div class="simplified-box">Simplified ${form}:<br><br>Y = ${simplified||"0"}</div><p class="small-note">Click any cell to cycle 0 → 1 → X → 0. X cells can help grouping but are not required to be covered. Wrap-around is allowed.</p><button type="button" onclick="resetKMapFromCircuit()">Reset from circuit output</button>`;
+  document.getElementById("kmapInfo").innerHTML=info;
+  document.getElementById("kmapPanel").style.display="block";
+  requestAnimationFrame(()=>drawGroupBoxes(groups));
+}
+function startDrag(event,element){
+  if(event.target.classList.contains("port")||event.target.classList.contains("input-port"))return;
+  dragging=element;const rect=element.getBoundingClientRect();
+  dragOffsetX=event.clientX-rect.left;dragOffsetY=event.clientY-rect.top;
+  document.addEventListener("mousemove",dragMove);document.addEventListener("mouseup",stopDrag);
+}
+function dragMove(event){
+  if(!dragging)return;
+  const canvas=document.getElementById("canvas"),rect=canvas.getBoundingClientRect();
+  const x=event.clientX-rect.left+canvas.scrollLeft-dragOffsetX;
+  const y=event.clientY-rect.top+canvas.scrollTop-dragOffsetY;
+  dragging.style.left=Math.max(0,x)+"px";dragging.style.top=Math.max(0,y)+"px";drawWires();
+}
+function stopDrag(){
+  dragging=null;document.removeEventListener("mousemove",dragMove);document.removeEventListener("mouseup",stopDrag);
+}
+function drawWires(){
+  const svg=document.getElementById("wires");svg.innerHTML="";
+  connections.forEach(connection=>{
+    let fromId=connection.from;
+    if(["A","B","C","D"].includes(fromId))fromId="port"+fromId;
+    const from=document.getElementById(fromId),to=document.getElementById(connection.to);
+    if(!from||!to)return;
+    const p1=getPortCenter(from),p2=getPortCenter(to),mid=(p1.x+p2.x)/2;
+    const path=document.createElementNS("http://www.w3.org/2000/svg","path");
+    path.setAttribute("class","wire");path.setAttribute("d",`M ${p1.x} ${p1.y} C ${mid} ${p1.y}, ${mid} ${p2.y}, ${p2.x} ${p2.y}`);svg.appendChild(path);
+  });
+}
+function getPortCenter(el){
+  const canvas=document.getElementById("canvas"),r=el.getBoundingClientRect(),c=canvas.getBoundingClientRect();
+  return{x:r.left-c.left+canvas.scrollLeft+r.width/2,y:r.top-c.top+canvas.scrollTop+r.height/2};
+}
+async function exportCircuitImage(){
+  const status=document.getElementById("status");
+  const target=document.getElementById("canvas");
+  if(!target){alert("Circuit workspace nahi mila.");return;}
+  status.textContent="Preparing circuit image...";
+  try{
+    // Load html2canvas only when the export button is clicked.
+    if(typeof window.html2canvas!=="function"){
+      await new Promise((resolve,reject)=>{
+        const script=document.createElement("script");
+        script.src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+        script.onload=resolve;
+        script.onerror=()=>reject(new Error("Image library load nahi hui. Internet connection check karke retry karein."));
+        document.head.appendChild(script);
+      });
+    }
+    // Include the complete workspace, even if it is scrollable.
+    const imageCanvas=await window.html2canvas(target,{
+      backgroundColor:"#f8fafc",
+      scale:2,
+      useCORS:true,
+      logging:false,
+      width:target.scrollWidth,
+      height:target.scrollHeight,
+      windowWidth:Math.max(document.documentElement.clientWidth,target.scrollWidth),
+      windowHeight:Math.max(document.documentElement.clientHeight,target.scrollHeight),
+      onclone:function(clonedDoc){
+        const clonedCanvas=clonedDoc.getElementById("canvas");
+        if(clonedCanvas){
+          clonedCanvas.style.overflow="visible";
+          clonedCanvas.style.height=clonedCanvas.scrollHeight+"px";
+        }
+      }
+    });
+    const link=document.createElement("a");
+    link.download="DLD_Circuit.png";
+    link.href=imageCanvas.toDataURL("image/png");
+    document.body.appendChild(link);link.click();link.remove();
+    status.textContent="Circuit image downloaded: DLD_Circuit.png";
+  }catch(error){
+    console.error(error);
+    status.textContent="Export failed. Internet check karein aur EXPORT IMAGE dobara click karein.";
+    alert("Image export nahi ho paya. Internet connection check karke dobara try karein. Details: "+error.message);
+  }
+}
+
+function saveCircuit(){
+  const state={
+    app:"DLD Circuit Simulator",
+    version:1,
+    gateCount,
+    gates:Object.keys(gates).map(id=>({
+      id,
+      type:gates[id].type,
+      left:document.getElementById(id)?.style.left || "",
+      top:document.getElementById(id)?.style.top || ""
+    })),
+    connections:connections.map(c=>({from:c.from,to:c.to})),
+    inputs:{...inputs},
+    selectedOutput:document.getElementById("outputSelector").value || ""
+  };
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download="dld-circuit.json";
+  document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+  document.getElementById("status").textContent="Circuit saved as dld-circuit.json";
+}
+
+function loadCircuit(event){
+  const file=event.target.files && event.target.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(){
+    try{
+      const state=JSON.parse(reader.result);
+      if(!state || !Array.isArray(state.gates) || !Array.isArray(state.connections) || !state.inputs){
+        throw new Error("This JSON does not look like a saved DLD circuit.");
+      }
+      // Clear existing gates/connections but keep the current input values until restored below.
+      Object.keys(gates).forEach(id=>document.getElementById(id)?.remove());
+      gates={};connections=[];gateCount=0;resetSelection();
+      document.getElementById("expressionPanel").style.display="none";
+      document.getElementById("truthPanel").style.display="none";
+      document.getElementById("kmapPanel").style.display="none";
+  document.getElementById("adderPanel").style.display="none";
+      document.getElementById("combinationalPanel").style.display="none";
+
+      // Recreate gates in saved order so their IDs remain G1, G2, ...
+      state.gates.forEach(saved=>{
+        addGate(saved.type);
+        const id="G"+gateCount;
+        const el=document.getElementById(id);
+        if(saved.left)el.style.left=saved.left;
+        if(saved.top)el.style.top=saved.top;
+      });
+      // Restore wires only when both endpoints exist in this circuit.
+      connections=state.connections.filter(c=>{
+        const fromOK=["A","B","C","D"].includes(c.from) || (c.from.endsWith("-out") && !!document.getElementById(c.from));
+        const toOK=!!document.getElementById(c.to) && (c.to.endsWith("-in1") || c.to.endsWith("-in2"));
+        return fromOK && toOK;
+      }).map(c=>({from:c.from,to:c.to}));
+
+      ["A","B","C","D"].forEach(name=>{
+        inputs[name]=Number(state.inputs[name])?1:0;
+        const buttonValue=document.getElementById("value"+name);
+        const nodeValue=document.getElementById("nodeValue"+name);
+        if(buttonValue)buttonValue.textContent=inputs[name];
+        if(nodeValue)nodeValue.textContent=inputs[name];
+      });
+      updateOutputSelector();
+      if(state.selectedOutput && gates[state.selectedOutput]){
+        document.getElementById("outputSelector").value=state.selectedOutput;
+      }
+      updateAll();drawWires();
+      document.getElementById("status").textContent="Circuit loaded successfully: "+file.name;
+    }catch(error){
+      alert("Could not load circuit: "+error.message);
+      document.getElementById("status").textContent="Load failed. Please select a valid saved DLD JSON file.";
+    }finally{
+      event.target.value="";
+    }
+  };
+  reader.readAsText(file);
+}
+
+function clearCircuit(){
+  Object.keys(gates).forEach(id=>document.getElementById(id)?.remove());
+  gates={};connections=[];gateCount=0;resetSelection();
+  document.getElementById("expressionPanel").style.display="none";
+  document.getElementById("truthPanel").style.display="none";
+  document.getElementById("kmapPanel").style.display="none";
+  document.getElementById("adderPanel").style.display="none";
+  document.getElementById("combinationalPanel").style.display="none";
+  updateOutputSelector();drawWires();
+  document.getElementById("status").textContent="Circuit cleared. Add a gate to begin.";
+}
+window.addEventListener("resize",drawWires);
+</script>
+<section id="seqLab" style="font-family:Arial,sans-serif;margin:18px 0;padding:22px;border:2px solid #94a3b8;border-radius:12px;background:#fff;color:#111827">
+<style>
+#seqLab *{box-sizing:border-box}#seqLab button,#seqLab select{font:inherit;padding:8px 10px;border-radius:6px;border:1px solid #94a3b8}#seqLab button{background:#2563eb;color:white;border:0;cursor:pointer;font-weight:bold}#seqLab .seq-row{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:14px 0}#seqLab .seq-card{background:#f0fdf4;border-left:5px solid #16a34a;padding:16px;margin:16px 0;border-radius:5px}#seqLab table{border-collapse:collapse;margin-top:12px}#seqLab th,#seqLab td{border:1px solid #94a3b8;padding:8px 13px;text-align:center}#seqLab th{background:#111827;color:#fff}#seqLab .muted{color:#475569;font-size:14px}#seqLab .pill{display:inline-block;background:#e0e7ff;padding:5px 9px;border-radius:99px;font-weight:bold}
+</style>
+<h2 style="margin:0 0 8px">Phase 14 — Sequential Logic Lab</h2>
+<p class="muted">SR Latch, D Flip-Flop, JK Flip-Flop aur T Flip-Flop ko interactively explore karo. Flip-flops state sirf rising clock edge par update karte hain.</p>
+<div class="seq-row"><label><b>Component:</b> <select id="seqType"><option value="sr">SR Latch (NOR, active-high)</option><option value="d">D Flip-Flop (rising edge)</option><option value="jk">JK Flip-Flop (rising edge)</option><option value="t">T Flip-Flop (rising edge)</option></select></label></div>
+<div id="seqInputs" class="seq-row"></div>
+<div class="seq-row"><button id="seqApply">Apply inputs / Update latch</button><button id="seqClock">Pulse clock ↑</button><button id="seqReset">Reset state</button><span class="pill" id="seqClockState">CLK = 0</span></div>
+<div class="seq-card"><h3 style="margin:0 0 8px">Current state</h3><div id="seqOutput" style="font-size:22px;font-weight:bold">Q = 0 &nbsp; | &nbsp; Q̅ = 1</div><p id="seqMessage" class="muted">Ready.</p></div>
+<h3>Operation / Truth Table</h3><div id="seqTruth"></div>
+<script>
+(function(){
+ const $=id=>document.getElementById(id);
+ let q=0, clk=0;
+ const inputDefs={sr:[['S','0'],['R','0']],d:[['D','0']],jk:[['J','0'],['K','0']],t:[['T','0']]};
+ function makeInputs(){const type=$('seqType').value;$('seqInputs').innerHTML=inputDefs[type].map(([name])=>`<label><b>${name}:</b> <select data-sig="${name}"><option value="0">0</option><option value="1">1</option></select></label>`).join(''); renderTruth();render();}
+ function val(n){const e=$('seqInputs').querySelector(`[data-sig="${n}"]`);return e?Number(e.value):0;}
+ function render(){ $('seqOutput').textContent=`Q = ${q}   |   Q̅ = ${1-q}`;$('seqClockState').textContent=`CLK = ${clk}`; }
+ function apply(){const type=$('seqType').value;if(type==='sr'){const s=val('S'),r=val('R');if(s===1&&r===1){$('seqMessage').textContent='Invalid/forbidden input for a NOR SR latch: S=R=1. State held for safety; avoid this input.';return;}if(s===1){q=1;$('seqMessage').textContent='Set: S=1, R=0, so Q becomes 1.';}else if(r===1){q=0;$('seqMessage').textContent='Reset: S=0, R=1, so Q becomes 0.';}else{$('seqMessage').textContent='Hold: S=0, R=0, previous Q is retained.';}render();}else{$('seqMessage').textContent='Inputs set. Press “Pulse clock ↑” to apply them on a rising edge.';}}
+ function clockPulse(){const type=$('seqType').value;if(type==='sr'){ $('seqMessage').textContent='SR latch does not require a clock. Use Apply inputs / Update latch.';return;}clk=1;const before=q;if(type==='d'){q=val('D');$('seqMessage').textContent=`Rising edge: Q takes D=${val('D')} (was ${before}).`;}else if(type==='jk'){const j=val('J'),k=val('K');if(j===0&&k===0){$('seqMessage').textContent='Rising edge: J=K=0, hold state.';}else if(j===0&&k===1){q=0;$('seqMessage').textContent='Rising edge: reset, Q=0.';}else if(j===1&&k===0){q=1;$('seqMessage').textContent='Rising edge: set, Q=1.';}else{q=1-q;$('seqMessage').textContent=`Rising edge: toggle, Q changes from ${before} to ${q}.`;}}else{const t=val('T');if(t===1){q=1-q;$('seqMessage').textContent=`Rising edge: T=1, toggle Q from ${before} to ${q}.`;}else{$('seqMessage').textContent='Rising edge: T=0, hold state.';}}render();setTimeout(()=>{clk=0;render();},180);}
+ function reset(){q=0;clk=0;$('seqMessage').textContent='State reset: Q=0.';render();}
+ function renderTruth(){const type=$('seqType').value;let title='',rows=[];if(type==='sr'){title='NOR SR Latch (S=R=1 is forbidden)';rows=[['S','R','Q(next)'],['0','0','Q (hold)'],['0','1','0 (reset)'],['1','0','1 (set)'],['1','1','Invalid']];}else if(type==='d'){title='D Flip-Flop (rising clock edge)';rows=[['CLK edge','D','Q(next)'],['↑','0','0'],['↑','1','1'],['No edge','X','Q (hold)']];}else if(type==='jk'){title='JK Flip-Flop (rising clock edge)';rows=[['CLK edge','J','K','Q(next)'],['↑','0','0','Q (hold)'],['↑','0','1','0 (reset)'],['↑','1','0','1 (set)'],['↑','1','1','Q̅ (toggle)']];}else{title='T Flip-Flop (rising clock edge)';rows=[['CLK edge','T','Q(next)'],['↑','0','Q (hold)'],['↑','1','Q̅ (toggle)']];}$('seqTruth').innerHTML='<p><b>'+title+'</b></p><table>'+rows.map((r,i)=>'<tr>'+r.map(c=>i===0?'<th>'+c+'</th>':'<td>'+c+'</td>').join('')+'</tr>').join('')+'</table>';}
+ $('seqType').addEventListener('change',()=>{q=0;clk=0;makeInputs();$('seqMessage').textContent='Component changed. State reset to Q=0.';});$('seqApply').addEventListener('click',apply);$('seqClock').addEventListener('click',clockPulse);$('seqReset').addEventListener('click',reset);makeInputs();
+})();
+</script>
+</section>
+<section id="phase15Lab" style="font-family:Arial,sans-serif;margin:18px 0;padding:22px;border:2px solid #94a3b8;border-radius:12px;background:#fff;color:#111827">
+<style>
+#phase15Lab *{box-sizing:border-box}#phase15Lab button,#phase15Lab select{font:inherit;padding:8px 10px;border-radius:6px;border:1px solid #94a3b8}#phase15Lab button{background:#2563eb;color:white;border:0;cursor:pointer;font-weight:bold}#phase15Lab .p15row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:14px 0}#phase15Lab .p15card{background:#f0fdf4;border-left:5px solid #16a34a;padding:16px;margin:16px 0;border-radius:5px}#phase15Lab table{border-collapse:collapse;margin-top:12px}#phase15Lab th,#phase15Lab td{border:1px solid #94a3b8;padding:8px 13px;text-align:center}#phase15Lab th{background:#111827;color:white}#phase15Lab .p15pill{display:inline-block;background:#e0e7ff;padding:5px 9px;border-radius:99px;font-weight:bold}#phase15Lab .p15bits{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}#phase15Lab .p15bit{background:#e2e8f0;border:1px solid #94a3b8;border-radius:8px;padding:12px 16px;font-size:22px;font-weight:bold;min-width:52px;text-align:center}
+</style>
+<h2 style="margin:0 0 8px">Phase 15 — Counter & Shift Register Lab</h2>
+<p style="color:#475569">4-bit binary counter aur 4-bit serial-in shift register ko clock pulses ke saath explore karo.</p>
+<div class="p15row"><label><b>Component:</b> <select id="p15type"><option value="counter">4-bit Binary Counter (up)</option><option value="shift">4-bit Shift Register (serial-in)</option></select></label></div>
+<div id="p15counterControls" class="p15row"><button id="p15countPulse">Pulse clock ↑</button><button id="p15countReset">Reset counter</button><span class="p15pill" id="p15clk">CLK = 0</span></div>
+<div id="p15shiftControls" style="display:none"><div class="p15row"><label><b>Serial input:</b> <select id="p15serial"><option value="0">0</option><option value="1">1</option></select></label><button id="p15shiftPulse">Shift on clock ↑</button><button id="p15shiftReset">Clear register</button><span class="p15pill" id="p15shiftclk">CLK = 0</span></div></div>
+<div class="p15card"><h3 style="margin:0 0 8px" id="p15stateTitle">Counter state</h3><div class="p15bits" id="p15bits"></div><div style="font-size:20px;font-weight:bold" id="p15value">Binary = 0000 | Decimal = 0</div><p id="p15msg" style="color:#475569;margin-bottom:0">Ready. Press a clock pulse to advance the state.</p></div>
+<h3 id="p15truthTitle">4-bit Up Counter — Sample State Sequence</h3><div id="p15truth"></div>
+<script>
+(function(){
+ const $=id=>document.getElementById(id);let count=0,bits=[0,0,0,0],clk=0;
+ function binary(n){return n.toString(2).padStart(4,'0')}
+ function render(){const type=$('p15type').value;const arr=type==='counter'?binary(count).split('').map(Number):bits;$('p15bits').innerHTML=arr.map((b,i)=>`<span class="p15bit">${b}<small style="display:block;font-size:11px;color:#475569">Q${3-i}</small></span>`).join('');$('p15value').textContent=type==='counter'?`Binary = ${binary(count)} | Decimal = ${count}`:`Register = ${bits.join('')} | Decimal = ${parseInt(bits.join(''),2)}`;$('p15clk').textContent=`CLK = ${clk}`;$('p15shiftclk').textContent=`CLK = ${clk}`;}
+ function renderTable(){const type=$('p15type').value;if(type==='counter'){let rows='<table><tr><th>Current count</th><th>Binary state</th><th>Next count after ↑</th></tr>';for(let n=0;n<8;n++)rows+=`<tr><td>${n}</td><td>${binary(n)}</td><td>${(n+1)%16} (${binary((n+1)%16)})</td></tr>`;rows+='</table><p style="color:#475569">Counter 0 se 15 tak count karta hai; 15 ke baad 0 par wrap hota hai.</p>';$('p15truth').innerHTML=rows;$('p15truthTitle').textContent='4-bit Up Counter — State Sequence';}else{$('p15truth').innerHTML='<table><tr><th>Serial input</th><th>Previous state Q3 Q2 Q1 Q0</th><th>Next state Q3 Q2 Q1 Q0</th></tr><tr><td>0</td><td>a b c d</td><td>b c d 0</td></tr><tr><td>1</td><td>a b c d</td><td>b c d 1</td></tr></table><p style="color:#475569">Har rising edge par bits left-shift hoti hain; naya serial input rightmost bit mein aata hai.</p>';$('p15truthTitle').textContent='4-bit Serial-In Shift Register — Operation';}}
+ function counterPulse(){if($('p15type').value!=='counter')return;clk=1;count=(count+1)%16;$('p15msg').textContent=`Rising edge: counter incremented to ${count} (${binary(count)}).`;render();setTimeout(()=>{clk=0;render()},150)}
+ function shiftPulse(){if($('p15type').value!=='shift')return;clk=1;const before=bits.join('');const incoming=Number($('p15serial').value);bits=[bits[1],bits[2],bits[3],incoming];$('p15msg').textContent=`Rising edge: ${before} shifted left; serial input ${incoming} entered at Q0.`;render();setTimeout(()=>{clk=0;render()},150)}
+ $('p15type').addEventListener('change',()=>{count=0;bits=[0,0,0,0];clk=0;const shift=$('p15type').value==='shift';$('p15counterControls').style.display=shift?'none':'flex';$('p15shiftControls').style.display=shift?'block':'none';$('p15stateTitle').textContent=shift?'Shift register state':'Counter state';$('p15msg').textContent='Component changed. State reset.';renderTable();render()});
+ $('p15countPulse').addEventListener('click',counterPulse);$('p15countReset').addEventListener('click',()=>{count=0;clk=0;$('p15msg').textContent='Counter reset to 0000 (decimal 0).';render()});$('p15shiftPulse').addEventListener('click',shiftPulse);$('p15shiftReset').addEventListener('click',()=>{bits=[0,0,0,0];clk=0;$('p15msg').textContent='Shift register cleared to 0000.';render()});renderTable();render();
+})();
+</script>
+</section>
+</body>
+</html>
